@@ -1,0 +1,17 @@
+INPUT(
+./debug\main.o
+./debug\MainWindow.o
+./debug\CMouseControlDialog.o
+./debug\CPLTProcess.o
+./debug\CPaintWidget.o
+./debug\CTextDesignDialog.o
+./debug\CConfigCPDialog.o
+./debug\CConfigUserDefDialog.o
+./debug\qrc_res.o
+./debug\moc_MainWindow.o
+./debug\moc_CMouseControlDialog.o
+./debug\moc_CPaintWidget.o
+./debug\moc_CTextDesignDialog.o
+./debug\moc_CConfigCPDialog.o
+./debug\moc_CConfigUserDefDialog.o
+);
