@@ -14,11 +14,15 @@ TEMPLATE = app
 SOURCES += \
         src/main.cpp\
         src/MainWindow.cpp \
-    src/CMouseControlDialog.cpp
+    src/CMouseControlDialog.cpp \
+    src/excelengine.cpp \
+    src/E2CubicSpline.cpp
 
 HEADERS  += \
         src/MainWindow.h \
-    src/CMouseControlDialog.h
+    src/CMouseControlDialog.h \
+    src/excelengine.h \
+    src/E2CubicSpline.h
 
 SOURCES +=\
         src/CPLTProcess.cpp\
@@ -45,6 +49,8 @@ CONFIG(debug, debug | release) {
 } else {
     LIBS += -L$$DESTDIR/ -lDobotDll
 }
+
+QT+=axcontainer
 
 RESOURCES += \
     res/res.qrc
