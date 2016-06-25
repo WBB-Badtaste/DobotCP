@@ -246,8 +246,37 @@ bool _e2_cub_spline::GetPointByStep(const double &step, SP_PROIFILE *point, unsi
 	return true;
 }
 
+bool _e2_cub_spline::GetY(const double &x, double &y)
+{
+    unsigned cubIndex(0);
 
-bool _e2_cub_spline::GetY(const double &x, SP_PROIFILE &y)
+    if(x < nodeArray[0].x || x > nodeArray[pointAmount - 1].x)
+        return false;
+
+    if(x == nodeArray[pointAmount - 1].x)
+    {
+        cubIndex = subAmount-2;
+    }
+    else
+    {
+        for(; cubIndex < subAmount; )
+        {
+            if(nodeArray[++cubIndex].x > x)
+            {
+                cubIndex--;
+                break;
+            }
+        }
+    }
+
+    double deltaX(x - nodeArray[cubIndex].x);
+
+    y = equArray[cubIndex].A + equArray[cubIndex].B * deltaX + equArray[cubIndex].C * deltaX * deltaX + equArray[cubIndex].D * deltaX * deltaX *deltaX;
+
+    return true;
+}
+
+bool _e2_cub_spline::GetYFull(const double &x, SP_PROIFILE &y)
 {
     unsigned cubIndex(0);
 

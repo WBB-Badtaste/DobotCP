@@ -149,11 +149,20 @@ public:
     /*
     @brief: get y by x
     @param[in]: x
-    @param[out]: point
+    @param[out]: y
     @author: JoMar
     @date: 2016-06-24
     */
-    bool GetY(const double &x, SP_PROIFILE &y);
+    bool GetYFull(const double &x, SP_PROIFILE &y);
+
+    /*
+    @brief: get y by x
+    @param[in]: x
+    @param[out]: y
+    @author: JoMar
+    @date: 2016-06-24
+    */
+    bool GetY(const double &x, double &y);
 	
 private:
 	BOUNDARY_INFO boundInfo;

@@ -3,17 +3,22 @@
 
 #include <QDialog>
 #include <QVector>
+#include <QTime>
+#include "E2CubicSpline.h"
 
-//#define EXPORT_MOUSE_DATA
+#define EXPORT_MOUSE_DATA
+#define EXPORT_SAMPLE_NUM 20
+#define EXPORT_SAMPLE_CYC 100
 
-#define COMMAND_DELAY 50
-#define ENDPOINT_SMOOTH_DELAY 2
+#define PRINT_SPLINE_CYC 3
+
+#define COMMAND_DELAY 20
 
 #define MANUAL_RATIO 2
 #define POINTS_THRESHOLD 5
 
-//#define SMOOTH_MODEL
-#define SMOOTH_SEC_NUM 70
+
+
 
 typedef struct tagPoint
 {
@@ -72,11 +77,6 @@ public:
     QTimer *timer;
     QTimer *m_endPointTimer;
     int i;
-//    typedef struct tagPoint {
-//        float deltaX;
-//        float deltaY;
-//        float deltaZ;
-//    }Point;
 
 protected:
     void mousePressEvent(QMouseEvent *event);
@@ -85,21 +85,12 @@ protected:
     void wheelEvent(QWheelEvent *event);
 private slots:
     void onTimer(void);
-    void onEndPointSmooth(void);
 private:
     bool rightBtnPressed;
 
     Point m_lastPoint;
     Point m_currentPoint;
     Point m_deltaPoint;
-
-    static const unsigned HISTORY_POINTS_SIZE = SMOOTH_SEC_NUM;
-    unsigned m_historyPointsChangeIndex;
-    unsigned m_historyPointsSizeMask;
-    Point m_historyPoints[HISTORY_POINTS_SIZE];
-    Point m_sumOfPoints;
-    inline const void SmoothPoint(Point &point);
-    Point m_smoothPoint;
 
     static const int DOBOT_WORK_X = 320;
     static const int DOBOT_WORK_Y = 400;
@@ -111,15 +102,27 @@ private:
     float m_ratio_x;
     float m_ratio_y;
 
-    unsigned startEndPointSingal = 3;
+    QTime m_sysTime;//用来记录运行时间
 
+    int m_lastSampleTime;//上一次采集时间戳,计算时间差用
+    int m_startSampleTime;//第一次采样时间
+    bool m_startCommand;//下发标志
+    int m_startCommandTime;//第一次下发时间
+
+    unsigned m_commandMask;
+
+    int m_commandTime[10000];
+    double m_commandX[10000];
+    double m_commandY[10000];
+
+    double m_deltaCommandX[10000];
+    double m_deltaCommandY[10000];
+
+    E2_CUB_SPLINE *m_splineX;
+    E2_CUB_SPLINE *m_splineY;
 #ifdef EXPORT_MOUSE_DATA
-    unsigned m_indexOfData;
-    unsigned m_indexOfSmoothData;
-    static const int EXPORT_DATA_SIZE = 1000;
-    int m_lastSysTime;
-    int m_exportData[EXPORT_DATA_SIZE][3];
-    int m_smoothData[EXPORT_DATA_SIZE][3];
+    unsigned m_sampleDataMask;//指示当前的采集数组水位
+    int m_sampleData[EXPORT_SAMPLE_NUM][4];
 #endif
 };
 
