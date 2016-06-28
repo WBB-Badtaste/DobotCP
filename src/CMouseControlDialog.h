@@ -12,7 +12,7 @@
 
 #define PRINT_SPLINE_CYC 3
 
-#define COMMAND_DELAY 20
+#define COMMAND_DELAY 3
 
 #define MANUAL_RATIO 2
 #define POINTS_THRESHOLD 5
@@ -118,12 +118,14 @@ private:
     double m_deltaCommandX[10000];
     double m_deltaCommandY[10000];
 
-    E2_CUB_SPLINE *m_splineX;
-    E2_CUB_SPLINE *m_splineY;
+    E2_CUB_SPLINE m_splineX;
+    E2_CUB_SPLINE m_splineY;
+
 #ifdef EXPORT_MOUSE_DATA
     unsigned m_sampleDataMask;//指示当前的采集数组水位
     int m_sampleData[EXPORT_SAMPLE_NUM][4];
 #endif
+
 };
 
 

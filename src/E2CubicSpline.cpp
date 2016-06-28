@@ -2,83 +2,37 @@
 #include <math.h>
 
 
-_e2_cub_spline::_e2_cub_spline(): pointAmount(0), subAmount(0), nodeArray(nullptr), equArray(nullptr), subCurveLen(nullptr)
+_e2_cub_spline::_e2_cub_spline()
 {
 }
 
 
 _e2_cub_spline::~_e2_cub_spline()
 {
-	DeleteArray();
+
 }
 
-_e2_cub_spline::_e2_cub_spline(const _e2_cub_spline& object) : pointAmount(object.pointAmount), subAmount(object.subAmount), nodeArray(nullptr), equArray(nullptr), subCurveLen(nullptr)
+_e2_cub_spline::_e2_cub_spline(const _e2_cub_spline& object)
 {
-	DeleteArray();
-	CreateArray();
-	CopyArray(object);
+    dequeOfEqus.assign(object.dequeOfEqus.begin(), object.dequeOfEqus.end());
+    dequeOfNodes.assign(object.dequeOfNodes.begin(), object.dequeOfNodes.end());
 }
 
-_e2_cub_spline::_e2_cub_spline(const unsigned num, E2_POINT *points) : pointAmount(num), subAmount(num - 1), nodeArray(nullptr), equArray(nullptr), subCurveLen(nullptr)
+_e2_cub_spline::_e2_cub_spline(const unsigned num, E2_POINT *points)
 {
-	CreateArray();
-	CopyNodeArray(points);
-	CubicSplineInterpolationFront();
+    CubicSplineInterpolation(num, points);
 }
 
 _e2_cub_spline& _e2_cub_spline::operator=(const _e2_cub_spline& object)
 {
-	DeleteArray();
-	CreateArray();
-	pointAmount = object.pointAmount;
-	subAmount = object.subAmount;
-	CopyArray(object);
-	boundInfo = object.boundInfo;
+    dequeOfEqus.clear();
+    dequeOfEqus.assign(object.dequeOfEqus.begin(), object.dequeOfEqus.end());
+    dequeOfNodes.clear();
+    dequeOfNodes.assign(object.dequeOfNodes.begin(), object.dequeOfNodes.end());
 	return *this;
 }
 
-void _e2_cub_spline::DeleteArray()
-{
-	if (nodeArray)
-	{
-		delete[] nodeArray;
-		nodeArray = 0;
-	}
-	if (equArray)
-	{
-		delete[] equArray;
-		equArray = 0;
-	}
-	if (subCurveLen)
-	{
-		delete[] subCurveLen;
-		subCurveLen = 0;
-	}
-}
-
-void _e2_cub_spline::CreateArray()
-{
-	nodeArray = new E2_POINT[pointAmount]();
-	equArray = new CUB_EQU[subAmount]();
-	subCurveLen = new double[subAmount]();
-}
-
-void _e2_cub_spline::CopyNodeArray(const E2_POINT* const &points)
-{
-	for (unsigned i = 0; i < pointAmount; ++i)
-		nodeArray[i] = points[i];
-}
-
-void _e2_cub_spline::CopyArray(const _e2_cub_spline& object)
-{
-	CopyNodeArray(object.nodeArray);
-	for (unsigned i = 0; i < subAmount; ++i)
-	{
-		equArray[i] = object.equArray[i];
-		subCurveLen[i] = object.subCurveLen[i];
-	}
-}
-
+//解三对角矩阵
 void _e2_cub_spline::SolTridiagonalMatrices(const unsigned n, const double* A, const double* B, double* C, double *X, double* Y)
 {
 	//forward elimination
@@ -98,143 +52,130 @@ void _e2_cub_spline::SolTridiagonalMatrices(const unsigned n, const double* A, c
 		X[i] = Y[i] - C[i] * X[i + 1];
 }
 
-void _e2_cub_spline::CubicSplineInterpolationFront()
+bool _e2_cub_spline::CubicSplineInterpolation(const unsigned num, E2_POINT *points, bool bContinue /* = false */)
 {
-	if (subAmount != pointAmount - 1)
-	{
-		return;//error
-	}
+    std::deque<E2_POINT>::iterator iter_point_calcMask;
+    CUB_EQU &lastCub(dequeOfEqus.back());
 
-	double *deltaX = new double[subAmount]();
-	double *deltaY = new double[subAmount]();
+    if(bContinue)
+    {
+        iter_point_calcMask = dequeOfNodes.end();//指向上一段最后元素
+        for(unsigned i = 0; i < num; ++i)
+            dequeOfNodes.push_back(points[i]);//拼接数据
+    }
+    else
+    {
+        dequeOfNodes.assign(points, points + num);//重置数组
+        iter_point_calcMask = dequeOfNodes.begin();//指向新的数据第一位
+    }
 
-	//parameters of equation translation linear algebra
-	//[A, B, C]*[D]^T=[E]^T
-	double *A = new double[pointAmount]();
-	double *B = new double[pointAmount]();
-	double *C = new double[pointAmount]();
-	double *D = new double[pointAmount]();
-	double *E = new double[pointAmount]();
+    unsigned nodeAmount(num);//能不要吗？
+    unsigned subAmount(nodeAmount - 1);//能不要吗？
 
-	//calculate the delta of X,Y
-	for (unsigned i = 0; i < subAmount; ++i)
-	{
-		deltaX[i] = nodeArray[i + 1].x - nodeArray[i].x;
-		deltaY[i] = nodeArray[i + 1].y - nodeArray[i].y;
-	}
+    //分配差值空间
+    double *deltaX = new double[subAmount](); //能不能组合？
+    double *deltaY = new double[subAmount](); //能不能组合？
 
-	//calculate the matrix
-	for (unsigned i = 1; i < subAmount; ++i)
-	{
-		A[i] = deltaX[i - 1];
-		B[i] = 2 * (deltaX[i - 1] + deltaX[i]);
-		C[i] = deltaX[i];
+    //calculate the delta of X,Y
+    for (unsigned i = 0; i < nodeAmount; ++i)
+    {
+        deltaX[i] = (iter_point_calcMask + 1)->x - iter_point_calcMask->x;
+        deltaY[i] = (iter_point_calcMask + 1)->y - iter_point_calcMask->y;
+
+        iter_point_calcMask++;
+    }
+
+    //parameters of equation translation linear algebra
+    //[A, B, C]*[D]^T=[E]^T
+    double *A = new double[nodeAmount]();
+    double *B = new double[nodeAmount]();
+    double *C = new double[nodeAmount]();
+    double *D = new double[nodeAmount]();
+    double *E = new double[nodeAmount]();
+
+    //set up the spline condition
+    if(bContinue)
+    {
+        //Clamped
+        B[0] = 2 * deltaX[0];
+        C[0] = deltaX[0];
+        E[0] = 6.0 * (deltaY[0] / deltaX[0] - lastCub.B);
+    }
+    else
+    {
+        //Natural begin point
+        B[0] = 1;
+        C[0] = 0;
+        E[0] = 0;
+    }
+
+    //calculate the matrix
+    for (unsigned i = 1; i < subAmount; ++i)
+    {
+        A[i] = deltaX[i - 1];
+        B[i] = 2 * (deltaX[i - 1] + deltaX[i]);
+        C[i] = deltaX[i];
         E[i] = 6.0 * (deltaY[i] / deltaX[i] - deltaY[i - 1] / deltaX[i - 1]);
-	}
+    }
 
-	//set up the spline condition
-	//Natural begin point
-	B[0] = 1;
-	C[0] = 0;
-	E[0] = 0;
-	//Not-A-Knot end point
-	double fac(deltaX[subAmount - 1] / A[subAmount - 1]);
-	A[subAmount] = B[subAmount - 1] * fac + deltaX[subAmount - 2] + deltaX[subAmount - 1];
-	B[subAmount] = C[subAmount - 1] * fac - deltaX[subAmount - 2];
-	E[subAmount] = E[subAmount - 1] * fac;
+    //set up the spline condition
+    //Not-A-Knot end point
+    double fac(deltaX[subAmount - 1] / A[subAmount - 1]);
+    A[subAmount] = B[subAmount - 1] * fac + deltaX[subAmount - 2] + deltaX[subAmount - 1];
+    B[subAmount] = C[subAmount - 1] * fac - deltaX[subAmount - 2];
+    E[subAmount] = E[subAmount - 1] * fac;
 
-	SolTridiagonalMatrices(pointAmount, A, B, C, D, E);
+    //解三对角矩阵
+    SolTridiagonalMatrices(nodeAmount, A, B, C, D, E);
 
-	for (unsigned i = 0; i < subAmount; i++)
-	{
-		//calculate the paramers of equ
-		equArray[i].A = nodeArray[i].y;
-        equArray[i].B = deltaY[i] / deltaX[i] - deltaX[i] * 0.5 * D[i] - deltaX[i] / 6.0 * (D[i + 1] - D[i]);
-		equArray[i].C = D[i] * 0.5;
-		equArray[i].D = (D[i + 1] - D[i]) / 6.0 / deltaX[i];
+    CUB_EQU subEqu;
+    for (unsigned i = 0; i < subAmount; ++i)
+    {
+        //calculate the paramers of equ
+        subEqu.A = dequeOfNodes[i].y;
+        subEqu.B = deltaY[i] / deltaX[i] - deltaX[i] * 0.5 * D[i] - deltaX[i] / 6.0 * (D[i + 1] - D[i]);
+        subEqu.C = D[i] * 0.5;
+        subEqu.D = (D[i + 1] - D[i]) / 6.0 / deltaX[i];
 
-		//calculate the len of the sub
-        subCurveLen[i]
-			= equArray[i].A * deltaX[i]
-			+ equArray[i].B * pow(deltaX[i], 2) * 0.5
-			+ equArray[i].C * pow(deltaX[i], 3) / 3
-            + equArray[i].D * pow(deltaX[i], 4) / 4
-			- nodeArray[i].y;
+        dequeOfEqus.push_back(subEqu);
+    }
 
-		if (i)
-			subCurveLen[i] += subCurveLen[i - 1];//the sum len form start point
-	}
+    delete[] deltaX;
+    delete[] deltaY;
+    delete[] A;
+    delete[] B;
+    delete[] C;
+    delete[] D;
+    delete[] E;
 
-	delete[] deltaX;
-	delete[] deltaY;
-	delete[] A;
-	delete[] B;
-	delete[] C;
-	delete[] D;
-	delete[] E;
+    return true;
 }
 
-
-void _e2_cub_spline::CubicSplineInterpolationContinue()
-{
-
-}
-
-
-bool _e2_cub_spline::GetPointByLen(const double &len, E2_POINT &point)
-{
-	if (len > subCurveLen[subAmount - 1])
-		return false;
-
-	if (len == subCurveLen[subAmount - 1])
-		point = nodeArray[pointAmount - 1];
-	else
-	{
-		unsigned i = 0;
-
-		for (; i < subAmount; ++i)
-		{
-			if (subCurveLen[i] < len && len < subCurveLen[i + 1])
-				break;
-		}
-		
-		double subLen(len - subCurveLen[i]);
-	}
-	
-	return true;
-}
-
-void _e2_cub_spline::SolQuarticEquation(const double a, const double b, const double c, const double d, const double e, double &x)
-{
-	const double P((c*c + 12 * a * e - 3 * d * b) / 9);
-	const double Q((27 * a *d *d + 2 * c * c * c + 27 * b * b * e - 72 * a * c * e - 9 * b * c * d));
-	const double D(sqrt(Q * Q - P * P * P));
-	const double tmp1(pow(Q + D, 1 / 3));
-}
 
 bool _e2_cub_spline::GetPointByStep(const double &step, SP_PROIFILE *point, unsigned &pointNum)
 {
     unsigned cubIndex(0), pointIndex(0);
     double deltaX(0.0);
-	while (1)
-	{
+    while (1)
+    {
         if(pointIndex)
             point[pointIndex].x = point[pointIndex - 1].x + step;
         else
             point[pointIndex].x = 0;
 
-        if (point[pointIndex].x > nodeArray[cubIndex + 1].x && ++cubIndex == subAmount)//整理一下逻辑
-		{
-            point[pointIndex].x = nodeArray[cubIndex--].x;
-		}
+        if (point[pointIndex].x > dequeOfNodes[cubIndex + 1].x && ++cubIndex == dequeOfEqus.size())//整理一下逻辑
+        {
+            point[pointIndex].x = dequeOfNodes[cubIndex--].x;
+        }
 
-        deltaX = point[pointIndex].x - nodeArray[cubIndex].x;
+        deltaX = point[pointIndex].x - dequeOfNodes[cubIndex].x;
 
-		point[pointIndex].y = equArray[cubIndex].A + equArray[cubIndex].B * deltaX + equArray[cubIndex].C * deltaX * deltaX + equArray[cubIndex].D * deltaX * deltaX *deltaX;
-        point[pointIndex].dy = equArray[cubIndex].B + 2 * equArray[cubIndex].C * deltaX + 3 * equArray[cubIndex].D * deltaX * deltaX;
-        point[pointIndex].ddy = 2 * equArray[cubIndex].C + 6 * equArray[cubIndex].D * deltaX;
+        CUB_EQU &cubEqu(dequeOfEqus[cubIndex]);
+        point[pointIndex].y = cubEqu.A + cubEqu.B * deltaX + cubEqu.C * deltaX * deltaX +cubEqu.D * deltaX * deltaX *deltaX;
+        point[pointIndex].dy = cubEqu.B + 2 * cubEqu.C * deltaX + 3 * cubEqu.D * deltaX * deltaX;
+        point[pointIndex].ddy = 2 * cubEqu.C + 6 * cubEqu.D * deltaX;
 
-        if(point[pointIndex].x == nodeArray[cubIndex + 1].x)//不能删
+        if(point[pointIndex].x == dequeOfNodes[cubIndex + 1].x)//不能删
         {
             pointIndex++;
             break;
@@ -243,25 +184,28 @@ bool _e2_cub_spline::GetPointByStep(const double &step, SP_PROIFILE *point, unsi
         pointIndex++;
     }
     pointNum = pointIndex;
-	return true;
+    return true;
 }
 
 bool _e2_cub_spline::GetY(const double &x, double &y)
 {
     unsigned cubIndex(0);
 
-    if(x < nodeArray[0].x || x > nodeArray[pointAmount - 1].x)
+    if(dequeOfNodes.size() < 1)
         return false;
 
-    if(x == nodeArray[pointAmount - 1].x)
+    if(x < dequeOfNodes.front().x || x > dequeOfNodes.back().x)
+        return false;
+
+    if(x == dequeOfNodes.back().x)
     {
-        cubIndex = subAmount-2;
+        cubIndex = dequeOfEqus.size() - 2;
     }
     else
     {
-        for(; cubIndex < subAmount; )
+        for(; cubIndex < dequeOfEqus.size(); )
         {
-            if(nodeArray[++cubIndex].x > x)
+            if(dequeOfNodes[++cubIndex].x > x)
             {
                 cubIndex--;
                 break;
@@ -269,9 +213,10 @@ bool _e2_cub_spline::GetY(const double &x, double &y)
         }
     }
 
-    double deltaX(x - nodeArray[cubIndex].x);
+    double deltaX(x - dequeOfNodes[cubIndex].x);
 
-    y = equArray[cubIndex].A + equArray[cubIndex].B * deltaX + equArray[cubIndex].C * deltaX * deltaX + equArray[cubIndex].D * deltaX * deltaX *deltaX;
+    CUB_EQU &cubEqu(dequeOfEqus[cubIndex]);
+    y = cubEqu.A + cubEqu.B * deltaX + cubEqu.C * deltaX * deltaX + cubEqu.D * deltaX * deltaX *deltaX;
 
     return true;
 }
@@ -280,18 +225,21 @@ bool _e2_cub_spline::GetYFull(const double &x, SP_PROIFILE &y)
 {
     unsigned cubIndex(0);
 
-    if(x < nodeArray[0].x || x > nodeArray[pointAmount - 1].x)
+    if(dequeOfNodes.size() < 1)
         return false;
 
-    if(x == nodeArray[pointAmount - 1].x)
+    if(x < dequeOfNodes.front().x || x > dequeOfNodes.back().x)
+        return false;
+
+    if(x ==  dequeOfNodes.back().x)
     {
-        cubIndex = subAmount-2;
+        cubIndex = dequeOfEqus.size() - 2;
     }
     else
     {
-        for(; cubIndex < subAmount; )
+        for(; cubIndex < dequeOfEqus.size(); )
         {
-            if(nodeArray[++cubIndex].x > x)
+            if(dequeOfNodes[++cubIndex].x > x)
             {
                 cubIndex--;
                 break;
@@ -299,11 +247,12 @@ bool _e2_cub_spline::GetYFull(const double &x, SP_PROIFILE &y)
         }
     }
 
-    double deltaX(x - nodeArray[cubIndex].x);
+    double deltaX(x - dequeOfNodes[cubIndex].x);
 
-    y.y = equArray[cubIndex].A + equArray[cubIndex].B * deltaX + equArray[cubIndex].C * deltaX * deltaX + equArray[cubIndex].D * deltaX * deltaX *deltaX;
-    y.dy = equArray[cubIndex].B + 2 * equArray[cubIndex].C * deltaX + 3 * equArray[cubIndex].D * deltaX * deltaX;
-    y.ddy = 2 * equArray[cubIndex].C + 6 * equArray[cubIndex].D * deltaX;
+    CUB_EQU &cubEqu(dequeOfEqus[cubIndex]);
+    y.y = cubEqu.A + cubEqu.B * deltaX + cubEqu.C * deltaX * deltaX + cubEqu.D * deltaX * deltaX *deltaX;
+    y.dy = cubEqu.B + 2 * cubEqu.C * deltaX + 3 * cubEqu.D * deltaX * deltaX;
+    y.ddy = 2 * cubEqu.C + 6 * cubEqu.D * deltaX;
 
     return true;
 }

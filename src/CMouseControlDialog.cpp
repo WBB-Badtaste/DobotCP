@@ -20,8 +20,6 @@ CMouseControlDialog::CMouseControlDialog(QWidget *parent)
     m_lastSampleTime(0),
     m_sampleDataMask(0),
     m_startCommand(false),
-    m_splineX(nullptr),
-    m_splineY(nullptr),
     m_startCommandTime(0),
     m_commandMask(0)
 {
@@ -84,8 +82,8 @@ CMouseControlDialog::~CMouseControlDialog()
         excel.SetCellData(1, 11, "splineY'");
         excel.SetCellData(1, 12, "splineY''");
 
+        double t(m_splineX.dequeOfNodes[0].x);
 
-        double t(m_splineX->nodeArray[0].x);
         SP_PROIFILE x;
         SP_PROIFILE y;
 
@@ -93,22 +91,22 @@ CMouseControlDialog::~CMouseControlDialog()
         {
             excel.SetCellData(i + 2,6,t);
 
-            m_splineX->GetYFull(t, x);
+            m_splineX.GetYFull(t, x);
             excel.SetCellData(i + 2, 7, x.y);
             excel.SetCellData(i + 2, 8, x.dy);
             excel.SetCellData(i + 2, 9, x.ddy);
 
-            m_splineY->GetYFull(t, y);
+            m_splineY.GetYFull(t, y);
             excel.SetCellData(i + 2, 10, y.y);
             excel.SetCellData(i + 2, 11, y.dy);
             excel.SetCellData(i + 2, 12, y.ddy);
 
-            if(t == m_splineX->nodeArray[m_splineX->pointAmount - 1].x)
+            if(t == m_splineX.dequeOfNodes.back().x)
                 break;
 
             t += PRINT_SPLINE_CYC;
-            if(t > m_splineX->nodeArray[m_splineX->pointAmount - 1].x)
-                t = m_splineX->nodeArray[m_splineX->pointAmount - 1].x;
+            if(t > m_splineX.dequeOfNodes.back().x)
+                t = m_splineX.dequeOfNodes.back().x;
         }
 
         excel.SetCellData(1, 14, "command时间戳");
@@ -126,28 +124,15 @@ CMouseControlDialog::~CMouseControlDialog()
             excel.SetCellData(i + 2, 18, m_deltaCommandY[i]);
         }
 
-
-        excel.Save(); //保存
+        excel.Save();
         excel.Close();
 #endif
 
     setMouseTracking(false);
     ClipCursor(NULL);
 
-    if(!m_splineX)
-    {
-        delete m_splineX;
-        m_splineX = nullptr;
-    }
-
-    if(!m_splineY)
-    {
-        delete m_splineY;
-        m_splineY = nullptr;
-    }
-
+    timer->stop();
     delete timer;
-
 }
 
 void CMouseControlDialog::mousePressEvent(QMouseEvent *event)
@@ -192,11 +177,9 @@ void CMouseControlDialog::mouseMoveEvent(QMouseEvent *event)
     m_sampleData[m_sampleDataMask][1] = mousePoint.x();
     m_sampleData[m_sampleDataMask][2] = mousePoint.y();
 
-    //采集样本足够，关闭窗口
+    //采集样本足够，开始下发
     if(++m_sampleDataMask == EXPORT_SAMPLE_NUM)
     {
-        m_startCommand = true;
-
         //转存到接口数据结构
         E2_POINT sampleX[m_sampleDataMask];
         E2_POINT sampleY[m_sampleDataMask];
@@ -208,14 +191,14 @@ void CMouseControlDialog::mouseMoveEvent(QMouseEvent *event)
         {
             sampleX[i].x = m_sampleData[i][0];
             sampleX[i].y = m_sampleData[i][1];
-
             sampleY[i].x = m_sampleData[i][0];
             sampleY[i].y = m_sampleData[i][2];
         }
 
-        //生成spline
-        m_splineX = new E2_CUB_SPLINE(m_sampleDataMask, sampleX);
-        m_splineY = new E2_CUB_SPLINE(m_sampleDataMask, sampleY);
+        m_splineX.CubicSplineInterpolation(m_sampleDataMask, sampleX);
+        m_splineY.CubicSplineInterpolation(m_sampleDataMask, sampleY);
+
+        m_startCommand = true;
     }
 
 #endif
@@ -268,22 +251,21 @@ void CMouseControlDialog::onTimer(void)
         if(!m_startCommandTime)
             m_startCommandTime = currentTime;
 
-
         m_commandTime[m_commandMask] = currentTime - m_startCommandTime;
-        if(m_commandTime[m_commandMask] > m_splineX->nodeArray[m_splineX->pointAmount - 1].x)
+        if(m_commandTime[m_commandMask] > m_splineX.dequeOfNodes.back().x)
         {
-            m_commandTime[m_commandMask] = m_splineX->nodeArray[m_splineX->pointAmount - 1].x;
+            m_commandTime[m_commandMask] = m_splineX.dequeOfNodes.back().x;
             m_startCommand = false;
         }
 
-        if(!m_splineX->GetY( m_commandTime[m_commandMask], m_commandX[m_commandMask]))
+        if(!m_splineX.GetY(m_commandTime[m_commandMask], m_commandX[m_commandMask]))
         {
             m_startCommand = false;
             timer->start(COMMAND_DELAY);
             return;
         }
 
-        if(!m_splineY->GetY( m_commandTime[m_commandMask], m_commandY[m_commandMask]))
+        if(!m_splineY.GetY(m_commandTime[m_commandMask], m_commandY[m_commandMask]))
         {
             m_startCommand = false;
             timer->start(COMMAND_DELAY);
@@ -299,12 +281,11 @@ void CMouseControlDialog::onTimer(void)
         {
             m_deltaCommandX[m_commandMask] = 0;
             m_deltaCommandY[m_commandMask] = 0;
-
         }
 
         if (!( -POINTS_THRESHOLD < m_deltaCommandX[m_commandMask] && m_deltaCommandX[m_commandMask] < POINTS_THRESHOLD
             && -POINTS_THRESHOLD < m_deltaCommandY[m_commandMask] && m_deltaCommandY[m_commandMask] < POINTS_THRESHOLD
-            //&& -POINTS_THRESHOLD < m_deltaPoint.deltaZ && m_deltaPoint.deltaZ < POINTS_THRESHOLD
+          //&& -POINTS_THRESHOLD < m_deltaPoint.deltaZ && m_deltaPoint.deltaZ < POINTS_THRESHOLD
                ))
         {
             //设置下发值
@@ -313,7 +294,7 @@ void CMouseControlDialog::onTimer(void)
             cpBufferCmd.line = 0;
             cpBufferCmd.x = -m_deltaCommandY[m_commandMask];
             cpBufferCmd.y = -m_deltaCommandX[m_commandMask];
-            cpBufferCmd.z = 0;//point.deltaZ / 30;
+            cpBufferCmd.z = 0; //point.deltaZ / 30;
             cpBufferCmd.velocity = 0;
             cpBufferCmd.ioState = 0;
 
@@ -324,6 +305,7 @@ void CMouseControlDialog::onTimer(void)
         }
 
         m_commandMask++;
+
 #ifndef EXPORT_MOUSE_DATA
     }
 #endif

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <deque>
 /*
 @brief: spline profile data
 @author: JoMar
@@ -45,6 +46,7 @@ typedef struct _e2_point
 */
 E2_POINT;
 
+
 /*
 @brief: cubic equation
 @author: JoMar
@@ -74,35 +76,10 @@ typedef struct _cub_equ
 @brief: cubic equation
 @author: JoMar
 @date: 2016-06-16
-@note: S(x)=A(x-x0)3+B(x-x0)2+C(x+x0)+D
+@note: S(xi)=Ai+Bi(X-Xi)+Ci(X-Xi)2+Di(X-Xi)3
 */
 CUB_EQU;
 
-/*
-@brief: boundary information of section of spline
-@author: JoMar
-@date: 2016-06-16
-*/
-typedef struct _boundary_info
-{
-	double lsatSecondDerivative;
-	E2_POINT lastPoint;
-
-	_boundary_info() : lsatSecondDerivative(0){};
-	_boundary_info(const _boundary_info& object) : lsatSecondDerivative(object.lsatSecondDerivative), lastPoint(object.lastPoint){};
-	_boundary_info& operator=(const _boundary_info& object)
-	{
-		lsatSecondDerivative = object.lsatSecondDerivative;
-		lastPoint = object.lastPoint;
-		return *this;
-	}
-}
-/*
-@brief: boundary information of section of spline
-@author: JoMar
-@date: 2016-06-16
-*/
-BOUNDARY_INFO;
 
 /*
 @brief: 2 dimensional cubic spline
@@ -112,11 +89,8 @@ BOUNDARY_INFO;
 typedef class _e2_cub_spline
 {
 public:
-	unsigned pointAmount;
-	unsigned subAmount;
-	E2_POINT *nodeArray;//nodes
-	CUB_EQU *equArray;//the equ paramers
-	double *subCurveLen;//spline len from start point to node
+    std::deque<E2_POINT> dequeOfNodes;//nodes
+    std::deque<CUB_EQU> dequeOfEqus;//the equ paramers
 
 	_e2_cub_spline();
 
@@ -164,20 +138,16 @@ public:
     */
     bool GetY(const double &x, double &y);
 	
+    /*
+    @brief: setup the spline profile
+    @param[in]: num - number of points
+    @param[in]: points - point array
+    @param[in]: bContinue
+    @author: JoMar
+    @date: 2016-06-27
+    */
+    bool CubicSplineInterpolation(const unsigned num, E2_POINT *points, bool bContinue = false);
 private:
-	BOUNDARY_INFO boundInfo;
-
-	inline void DeleteArray();
-
-	inline void CreateArray();
-
-	inline void CopyNodeArray(const E2_POINT* const &points);
-
-	inline void CopyArray(const _e2_cub_spline& object);
-
-	void CubicSplineInterpolationFront();
-
-	void CubicSplineInterpolationContinue();
 
 	/*
 	@brief: sol Tridiagonal Matrices Parameters
@@ -191,14 +161,6 @@ private:
 	[0,  0 , 0 , 0 , ... 0   , An  , Bn  ]
 	*/
 	void SolTridiagonalMatrices(const unsigned n, const double* A, const double* B, double* C, double *X, double* Y);
-
-	/*
-	@brief: Sol Quartic Equation
-	@author: JoMar
-	@date: 2016-06-23
-	@note: ax4+bx3+cx2+dx+e=0
-	*/
-	void SolQuarticEquation(const double a, const double b, const double c, const double d, const double e, double &x);
 }
 /*
 @brief: 2 dimensional cubic spline
