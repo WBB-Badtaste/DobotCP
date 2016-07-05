@@ -535,8 +535,6 @@ void MainWindow::onSendPlaybackTimer()
     // Set the value of progressbar
     sendProgress->setValue(playbackTotalLoop * playbackTotalLine);
     executeProgress->setValue(playbackTotalLoop * playbackTotalLine);
-
-
 }
 
 void MainWindow::onStopBtnClicked(void)
@@ -579,7 +577,6 @@ void MainWindow::onMouseBtnClicked(void)
     setCPInstantCmd((CPInstantCmd)CPStart);
     CMouseControlDialog dlg;
     dlg.exec();
-
 }
 
 #if 0

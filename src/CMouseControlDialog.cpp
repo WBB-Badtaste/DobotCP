@@ -8,7 +8,7 @@
 #include <windows.h>
 #include <windef.h>
 #include <QDateTime>
-#include "excelengine.h"
+
 
 
 
@@ -57,77 +57,6 @@ CMouseControlDialog::CMouseControlDialog(QWidget *parent)
 CMouseControlDialog::~CMouseControlDialog()
 {
 
-#ifdef EXPORT_MOUSE_DATA
-        ExcelEngine excel; //创建excl对象
-        excel.Open(QObject::tr("C:\\Users\\sos90\\Desktop\\SP_Mouse_Data.xls"), 1, false); //打开指定的xls文件的指定sheet，且指定是否可见
-
-        excel.SetCellData(1, 1, "采集时间戳");
-        excel.SetCellData(1, 2, "采集X");
-        excel.SetCellData(1, 3, "采集Y");
-        excel.SetCellData(1, 4, "采集Z");
-
-        for (int i = 0; i < EXPORT_SAMPLE_NUM; i++)
-        {
-             excel.SetCellData(i + 2, 1, m_sampleData[i][0]);
-             excel.SetCellData(i + 2, 2, m_sampleData[i][1]);
-             excel.SetCellData(i + 2, 3, m_sampleData[i][2]);
-             excel.SetCellData(i + 2, 4, m_sampleData[i][3]);
-        }
-
-        excel.SetCellData(1, 6, "spline时间戳");
-        excel.SetCellData(1, 7, "splineX");
-        excel.SetCellData(1, 8, "splineX'");
-        excel.SetCellData(1, 9, "splineX''");
-        excel.SetCellData(1, 10, "splineY");
-        excel.SetCellData(1, 11, "splineY'");
-        excel.SetCellData(1, 12, "splineY''");
-
-        double t(m_splineX.dequeOfNodes[0].x);
-
-        SP_PROIFILE x;
-        SP_PROIFILE y;
-
-        for(unsigned i = 0; true; ++i)
-        {
-            excel.SetCellData(i + 2,6,t);
-
-            m_splineX.GetYFull(t, x);
-            excel.SetCellData(i + 2, 7, x.y);
-            excel.SetCellData(i + 2, 8, x.dy);
-            excel.SetCellData(i + 2, 9, x.ddy);
-
-            m_splineY.GetYFull(t, y);
-            excel.SetCellData(i + 2, 10, y.y);
-            excel.SetCellData(i + 2, 11, y.dy);
-            excel.SetCellData(i + 2, 12, y.ddy);
-
-            if(t == m_splineX.dequeOfNodes.back().x)
-                break;
-
-            t += PRINT_SPLINE_CYC;
-            if(t > m_splineX.dequeOfNodes.back().x)
-                t = m_splineX.dequeOfNodes.back().x;
-        }
-
-        excel.SetCellData(1, 14, "command时间戳");
-        excel.SetCellData(1, 15, "commandX");
-        excel.SetCellData(1, 16, "commandY");
-        excel.SetCellData(1, 17, "deltaCommandX");
-        excel.SetCellData(1, 18, "deltaCommandY");
-
-        for(unsigned i = 0; i < m_commandMask; ++i)
-        {
-            excel.SetCellData(i + 2, 14, m_commandTime[i]);
-            excel.SetCellData(i + 2, 15, m_commandX[i]);
-            excel.SetCellData(i + 2, 16, m_commandY[i]);
-            excel.SetCellData(i + 2, 17, m_deltaCommandX[i]);
-            excel.SetCellData(i + 2, 18, m_deltaCommandY[i]);
-        }
-
-        excel.Save();
-        excel.Close();
-#endif
-
     setMouseTracking(false);
     ClipCursor(NULL);
 
@@ -156,7 +85,7 @@ void CMouseControlDialog::mouseMoveEvent(QMouseEvent *event)
     QPoint mousePoint(event->pos());//获取鼠标位置
     int currentSampleTime(m_sysTime.elapsed());//获取时间戳
 
-#ifdef EXPORT_MOUSE_DATA
+
     if(m_startCommand)
         return;
 
@@ -201,7 +130,6 @@ void CMouseControlDialog::mouseMoveEvent(QMouseEvent *event)
         m_startCommand = true;
     }
 
-#endif
     m_currentPoint.deltaX = mousePoint.x();
     m_currentPoint.deltaY = mousePoint.y();
 
@@ -230,7 +158,6 @@ void CMouseControlDialog::onTimer(void)
         return;
     }
 
-#ifndef EXPORT_MOUSE_DATA
     //检查buffer水位
     uint32_t bufferSize = 0;
     int result = GetCPBufferSize(&bufferSize);
@@ -242,16 +169,14 @@ void CMouseControlDialog::onTimer(void)
     if (bufferSize == 0)
     {
         qDebug() << "Buffer full!";
-        bufferSize = 20;
     }
     else
     {
-#endif
-        double currentTime(m_sysTime.elapsed());
-        if(!m_startCommandTime)
-            m_startCommandTime = currentTime;
+        if(m_commandMask == 0)
+            m_commandTime[m_commandMask] = 0;
+        else
+            m_commandTime[m_commandMask] = m_commandTime[m_commandMask - 1] + 20;
 
-        m_commandTime[m_commandMask] = currentTime - m_startCommandTime;
         if(m_commandTime[m_commandMask] > m_splineX.dequeOfNodes.back().x)
         {
             m_commandTime[m_commandMask] = m_splineX.dequeOfNodes.back().x;
@@ -305,10 +230,8 @@ void CMouseControlDialog::onTimer(void)
         }
 
         m_commandMask++;
-
-#ifndef EXPORT_MOUSE_DATA
     }
-#endif
+
 
     timer->start(COMMAND_DELAY);
 }
