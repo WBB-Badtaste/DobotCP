@@ -101,46 +101,26 @@ void CMouseControlDialog::wheelEvent(QWheelEvent *event)
 
 void CMouseControlDialog::onTimer(void)
 {
-    uint32_t bufferSize(0);
-    if (GetCPBufferSize(&bufferSize) != 0)
-    {
-        qDebug() << "Timeout!";
+    if(!m_bReSendCmd) {
+        double x(0.0), y(0.0), z(0.0);
+
+        m_lastCmdPoint.t += SPLINE_SAMPLE_CYC;
+
+        m_trajOp.GetDataByTimeStamp(m_lastCmdPoint.t, x, y, z);
+
+        m_cmd.x = m_lastCmdPoint.y - y;
+        m_cmd.y = m_lastCmdPoint.x - x;
+        m_cmd.z = z - m_lastCmdPoint.z;
+        m_cmd.velocity = 0;
+
+        m_lastCmdPoint.x = x;
+        m_lastCmdPoint.y = y;
+        m_lastCmdPoint.z = z;
     }
-    else if (bufferSize == 0)
-    {
-        qDebug() << "Buffer full!";
+    if (SetCPCmd(&m_cmd, true, 0) == DobotCommunicate_NoError) {
+        m_bReSendCmd = false;
+    } else {
+        m_bReSendCmd = true;
     }
-    else
-    {
-        if(!m_bReSendCmd)
-        {
-            double x(0.0), y(0.0), z(0.0);
-
-            m_lastCmdPoint.t += SPLINE_SAMPLE_CYC;
-
-            m_trajOp.GetDataByTimeStamp(m_lastCmdPoint.t, x, y, z);
-
-            m_cmd.ioState = 0;
-            m_cmd.line = 0;
-            m_cmd.loop = 0;
-            m_cmd.velocity = 0;
-            m_cmd.x = m_lastCmdPoint.y - y;
-            m_cmd.y = m_lastCmdPoint.x - x;
-            m_cmd.z = z - m_lastCmdPoint.z;
-
-            m_lastCmdPoint.x = x;
-            m_lastCmdPoint.y = y;
-            m_lastCmdPoint.z = z;
-        }
-
-        if(SetCPBufferCmd(&m_cmd) == DobotResult_NoError)//发送失败要重发
-            m_bReSendCmd = false;
-        else
-            m_bReSendCmd = true;
-
-    }
-
     timer->start(COMMAND_DELAY);
 }
-
-

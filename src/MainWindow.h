@@ -21,7 +21,6 @@
 #define MAINWINDOW_H
 
 #include <QDialog>
-#include <QMouseEvent>
 #include "DobotDll.h"
 
 class QLineEdit;
@@ -29,8 +28,6 @@ class QTableWidget;
 class QButtonGroup;
 class QProgressBar;
 class CPaintWidget;
-class QLabel;
-
 
 class MainWindow : public QDialog
 {
@@ -40,21 +37,18 @@ private:
         float deltaX;
         float deltaY;
         float deltaZ;
+        bool isLaserChange;
         bool isLaserOn;
-
     }WriteData;
 public:
     MainWindow(QWidget *parent = 0);
     ~MainWindow();
-
-protected:
-//    void mousePressEvent(QMouseEvent *event);
-//    void mouseReleaseEvent(QMouseEvent *event);
-//    void mouseMoveEvent(QMouseEvent *event);
-//    void wheelEvent(QWheelEvent *event);
-
 private:
     void initLayout(void);
+private slots:
+    void delayedInit(void);
+    void secondDelayedInit(void);
+    void onPeriodicTaskTimer(void);
 private slots:
     void onPenTypeChanged(int penType);
 
@@ -67,18 +61,11 @@ private slots:
     void onPlaybackStartBtnVerify(void);
     void onStartBtnClicked(void);
     void onStopBtnClicked(void);
+    void onSendCPTimer(void);
+
     void onConfigBtnClicked(void);
     void onUserDefBtnClicked(void);
     void onMouseBtnClicked(void);
-
-    void onSendPlaybackTimer(void);
-
-//    void onMouseTimer(void);
-
-private slots:
-    void delayedInit(void);
-    void onPeriodicTaskTimer(void);
-
 private:
     CPaintWidget *paintWidget;
 
@@ -96,34 +83,11 @@ private:
     QProgressBar *executeProgress;
 private:
     QTimer *getPoseTimer;
-    QTimer *getCPLoopLineTimer;
-    QTimer *getCPBufferSizeTimer;
 private:
     QList<QPolygonF> routeList;
     QVector<WriteData> writeList;
 
-    // Playback loop line
-    quint32 playbackTotalLoop;
-    quint32 playbackTotalLine;
-    quint32 playbackCurrentLoop;
-    quint32 playbackCurrentLine;
-
-    quint32 playbackSendStatus;
-    quint32 mouseSendStatus;
-
-    quint32 exeCurrentLoop, exeCurrentLine, exeCurrentLineState;
-
-private:
-    bool rightBtnPressed;
-    QPoint lastPoint;
-    QPoint deltaPoint;
-    int lastX;
-    int lastY;
-    int deltaX;
-    int deltaY;
-    int deltaZ;
-    QPoint z;
-    QVector<CPBufferCmd> mousePoint;
+    quint32 queuedCmdExecCtrl;
 };
 
 #endif // MAINWINDOW_H

@@ -69,6 +69,17 @@ typedef struct tagAlarmsState {
 }AlarmsState;
 
 /*********************************************************************************************************
+** HOME参数
+*********************************************************************************************************/
+typedef struct tagHOMEParams {
+    float temp;
+}HOMEParams;
+
+typedef struct tagHOMECmd {
+    uint32_t temp;
+}HOMECmd;
+
+/*********************************************************************************************************
 ** 点动示教部分
 *********************************************************************************************************/
 /*
@@ -110,7 +121,7 @@ typedef struct tagJogCommonParams {
 /*
  * Jog Cmd
  */
-enum JogCmd {
+enum {
     JogIdle,
     JogAPPressed,
     JogANPressed,
@@ -128,10 +139,10 @@ enum JogCmd {
  * Jog instant cmd
  */
 
-typedef struct tagJogInstantCmd {
+typedef struct tagJogCmd {
     uint8_t isJoint;
-    enum JogCmd cmd;
-}JogInstantCmd;
+    uint8_t cmd;
+}JogCmd;
 
 /*********************************************************************************************************
 ** 再现运动部分
@@ -162,17 +173,18 @@ typedef struct tagPlaybackCommonParams {
     float accelerationRatio;
 }PlaybackCommonParams;
 
-enum PlaybackInstantCmd {
-    PlaybackStart,
-    PlaybackPause,
-    PlaybackStop
-};
-
 // For play back
-enum MotionStyle {
-    JUMP,
-    MOVJ,
-    MOVL
+enum PTPMode {
+    PTPJUMPXYZMode,
+    PTPMOVJXYZMode,
+    PTPMOVLXYZMode,
+
+    PTPJUMPANGLEMode,
+    PTPMOVJANGLEMode,
+    PTPMOVLANGLEMode,
+
+    PTPMOVJXYZINCMode,
+    PTPMOVLXYZINCMode,
 };
 
 typedef enum tagInputPin {
@@ -193,24 +205,14 @@ typedef enum tagInputLevel {
     InputLevelHigh
 }InputLevel;
 
-typedef struct tagPlaybackPoint {
-    uint8_t inputPin;
-    uint8_t inputLevel;
-    uint8_t motionStyle;
+typedef struct tagPlaybackCmd {
+    uint8_t ptpMode;
     float x;
     float y;
     float z;
     float rHead;
     float gripper;
-    float pauseTime;
-    unsigned int ioState;
-}PlaybackPoint;
-
-typedef struct tagPlaybackBufferCmd {
-    uint32_t loop;
-    uint32_t line;
-    PlaybackPoint playbackPoint;
-}PlaybackBufferCmd;
+}PlaybackCmd;
 
 /*********************************************************************************************************
 ** 连续轨迹：Continuous path
@@ -225,22 +227,52 @@ typedef struct tagCPParams
     float acc;
 }CPParams;
 
-enum CPInstantCmd {
-    CPStart,
-    CPPause,
-    CPStop
+enum ContinuousPathMode {
+    CPRelativeMode,
+    CPAbsoluteMode
 };
 
-typedef struct tagCPBufferCmd {
-    uint32_t loop;
-    uint32_t line;
-
+typedef struct tagCPCmd {
+    uint8_t cpMode;
     float x;
     float y;
     float z;
     float velocity;
-    uint32_t ioState;
-}CPBufferCmd;
+}CPCmd;
+
+/*********************************************************************************************************
+** User parameters
+*********************************************************************************************************/
+typedef struct tagTRACKParams {
+    uint32_t temp;
+}TRACKParams;
+
+typedef struct tagTRACKCmd {
+    uint32_t temp;
+}TRACKCmd;
+
+typedef struct tagWAITParams {
+    uint8_t unitType;
+}WAITParams;
+
+typedef struct tagWAITCmd {
+    float waitTime;
+}WAITCmd;
+
+typedef struct tagTRIGParams {
+    uint32_t temp;
+}TRIGParams;
+
+typedef struct tagTRIGCmd {
+    uint8_t inputPin;
+    uint8_t inputLevel;
+}TRIGCmd;
+
+typedef enum tagGPIOFunction {
+    GPIOFunction_GPIO,
+    GPIOFunction_PWM,
+    GPIOFunction_ADC
+}GPIOFunction;
 
 /*********************************************************************************************************
 ** User parameters
@@ -250,17 +282,33 @@ typedef struct tagUserParams {
 }UserParams;
 
 /*********************************************************************************************************
+** Queued command related type
+*********************************************************************************************************/
+typedef enum tagQueuedCmdExecMode {
+    QueuedCmdExecOnlineMode,
+    QueuedCmdExecOfflineMode
+}QueuedCmdExecMode;
+
+typedef enum tagQueuedCmdExecCtrl {
+    QueuedCmdExecStartCtrl,
+    QueuedCmdExecPauseCtrl,
+    QueuedCmdExecStopCtrl,
+}QueuedCmdExecCtrl;
+
+/*********************************************************************************************************
 ** API result
 *********************************************************************************************************/
+enum {
+    DobotConnect_NoError,
+    DobotConnect_NotFound,
+    DobotConnect_Occupied
+};
 
-enum DobotResult {
-    DobotResult_NoError,
-    DobotResult_NotFound,
-    DobotResult_Occupied,
-    DobotResult_Timeout,
-
+enum {
+    DobotCommunicate_NoError,
+    DobotCommunicate_BufferFull,
+    DobotCommunicate_Timeout
 };
 
 #pragma pack(pop)
-
 #endif

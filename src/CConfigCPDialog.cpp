@@ -105,7 +105,8 @@ void CConfigCPDialog::onSendBtnClicked(void)
     cpParams.planAcc = params[0];
     cpParams.juncitionVel = params[1];
     cpParams.acc = params[2];
-    SetCPParams(&cpParams);
+
+    SetCPParams(&cpParams, false, 0);
 
     accept();
 }

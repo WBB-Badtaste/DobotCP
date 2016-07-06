@@ -24,57 +24,27 @@
 #include "CTextDesignDialog.h"
 #include <QProcess>
 #include <QApplication>
-#include "ProtocolID.h"
 #include "CConfigCPDialog.h"
 #include "CConfigUserDefDialog.h"
 #include "CPLTProcess.h"
 #include "CMouseControlDialog.h"
-
 
 MainWindow::MainWindow(QWidget *parent)
     : QDialog(parent)
 {
     initLayout();
 
+    // Delayed init
     QTimer *delayedInitTimer = new QTimer(this);
     connect(delayedInitTimer, SIGNAL(timeout()), this, SLOT(delayedInit()));
+    connect(delayedInitTimer, SIGNAL(timeout()), delayedInitTimer, SLOT(deleteLater()));
     delayedInitTimer->setSingleShot(true);
     delayedInitTimer->start(0);
-
 }
 
 MainWindow::~MainWindow()
 {
 
-}
-
-void MainWindow::delayedInit(void)
-{
-    if (ConnectDobot(115200) != DobotResult_NoError) {
-        QMessageBox::information(this, "Error", "Failed to connect!");
-
-        return;
-    }
-
-    QTimer *periodicTaskTimer = new QTimer(this);
-    connect(periodicTaskTimer, SIGNAL(timeout()), this, SLOT(onPeriodicTaskTimer()));
-    periodicTaskTimer->start(5);
-
-    // Timer used to get pose timer
-    getPoseTimer = new QTimer(this);
-    getPoseTimer->setObjectName("getPoseTimer");
-    connect(getPoseTimer, SIGNAL(timeout()), this, SLOT(onGetPoseTimer()));
-    getPoseTimer->start(500);
-
-    CConfigCPDialog cpDlg;
-    cpDlg.onSendBtnClicked();
-    CConfigUserDefDialog userDefDlg;
-    userDefDlg.onSendBtnClicked();
-}
-
-void MainWindow::onPeriodicTaskTimer(void)
-{
-    PeriodicTask();
 }
 
 void MainWindow::initLayout(void)
@@ -230,6 +200,52 @@ void MainWindow::initLayout(void)
     executeProgress->resize(730, 35);
 }
 
+void MainWindow::delayedInit(void)
+{
+    if (ConnectDobot(115200) != DobotConnect_NoError) {
+        QMessageBox::information(this, "Error", "Failed to connect!");
+        return;
+    }
+    QTimer *periodicTaskTimer = new QTimer(this);
+    connect(periodicTaskTimer, SIGNAL(timeout()), this, SLOT(onPeriodicTaskTimer()));
+    periodicTaskTimer->start(5);
+
+    QTimer *secondDelayedInitTimer = new QTimer(this);
+    connect(secondDelayedInitTimer, SIGNAL(timeout()), this, SLOT(secondDelayedInit()));
+    connect(secondDelayedInitTimer, SIGNAL(timeout()), secondDelayedInitTimer, SLOT(deleteLater()));
+    secondDelayedInitTimer->setSingleShot(true);
+    secondDelayedInitTimer->start(2000);
+}
+
+void MainWindow::secondDelayedInit(void)
+{
+    SetCmdTimeout(3000);
+    // Init parameters
+    CConfigCPDialog cpDlg;
+    cpDlg.onSendBtnClicked();
+    CConfigUserDefDialog userDefDlg;
+    userDefDlg.onSendBtnClicked();
+
+    // Online Mode
+    SetQueuedCmdExecMode(QueuedCmdExecOnlineMode);
+
+    // Get pose timer
+    QTimer *getPoseTimer = new QTimer(this);
+    connect(getPoseTimer, SIGNAL(timeout()), this, SLOT(onGetPoseTimer()));
+    getPoseTimer->start(250);
+#if 0
+    // Get kinematics timer
+    QTimer *getUserParamsTimer = new QTimer(this);
+    connect(getUserParamsTimer, SIGNAL(timeout()), this, SLOT(onGetUserParamsTimer()));
+    getUserParamsTimer->start(250);
+#endif
+}
+
+void MainWindow::onPeriodicTaskTimer(void)
+{
+    PeriodicTask();
+}
+
 void MainWindow::onPenTypeChanged(int penType)
 {
     brushDown->setEnabled(penType == 1);
@@ -273,7 +289,7 @@ void MainWindow::transformAllPoints(void)
             lastData.deltaX = routeList.at(0).at(0).x();
             lastData.deltaY = routeList.at(0).at(0).y();
             lastData.deltaZ = 0;
-            lastData.isLaserOn = false;
+            lastData.isLaserChange = false;
             writeList.push_back(lastData);
         break;
 
@@ -282,7 +298,7 @@ void MainWindow::transformAllPoints(void)
             lastData.deltaX = routeList.at(0).at(0).x();
             lastData.deltaY = routeList.at(0).at(0).y();
             lastData.deltaZ = brushDown->text().toFloat();
-            lastData.isLaserOn = false;
+            lastData.isLaserChange = false;
             writeList.push_back(lastData);
         break;
 
@@ -291,7 +307,7 @@ void MainWindow::transformAllPoints(void)
             lastData.deltaX = routeList.at(0).at(0).x();
             lastData.deltaY = routeList.at(0).at(0).y();
             lastData.deltaZ = 0;
-            lastData.isLaserOn = true;
+            lastData.isLaserChange = false;
             writeList.push_back(lastData);
         break;
     }
@@ -300,6 +316,7 @@ void MainWindow::transformAllPoints(void)
     lastData.deltaX = routeList.at(0).at(0).x();
     lastData.deltaY = routeList.at(0).at(0).y();
     lastData.deltaZ = 0;
+    lastData.isLaserChange = false;
     lastData.isLaserOn = false;
 
     int routeNum = routeList.count();
@@ -309,6 +326,7 @@ void MainWindow::transformAllPoints(void)
                 writeData.deltaX = routeList.at(i).at(0).x();
                 writeData.deltaY = routeList.at(i).at(0).y();
                 writeData.deltaZ = 0;
+                writeData.isLaserChange = true;
                 writeData.isLaserOn = false;
                 writeList.push_back(writeData);
             } else {
@@ -316,7 +334,7 @@ void MainWindow::transformAllPoints(void)
                 writeData.deltaX = lastData.deltaX;
                 writeData.deltaY = lastData.deltaY;
                 writeData.deltaZ = 10;
-                writeData.isLaserOn = false;
+                writeData.isLaserChange = false;
                 writeList.push_back(writeData);
 
                 lastData = writeData;
@@ -325,19 +343,27 @@ void MainWindow::transformAllPoints(void)
                 writeData.deltaX = routeList.at(i).at(0).x();
                 writeData.deltaY = routeList.at(i).at(0).y();
                 writeData.deltaZ = 10;
+                writeData.isLaserChange = false;
                 writeData.isLaserOn = false;
                 writeList.push_back(writeData);
 
                 lastData = writeData;
             }
         }
-        foreach (QPointF point, routeList.at(i)) {
+        // 仅在第一个点的时候操作激光
+        for (int j = 0; j < routeList.at(i).count(); j++) {
+            const QPointF point = routeList.at(i).at(j);
+
             writeData.deltaX = point.x();
             writeData.deltaY = point.y();
             writeData.deltaZ = 0;
-            writeData.isLaserOn = isLaser;
+            if (j == 0 && isLaser) {
+                writeData.isLaserChange = true;
+                writeData.isLaserOn = true;
+            } else {
+                writeData.isLaserChange = false;
+            }
             writeList.push_back(writeData);
-
             lastData = writeData;
         }
     }
@@ -356,25 +382,29 @@ void MainWindow::transformAllPoints(void)
     // 最后的抬笔，如果是激光，则关闭激光即可
     switch (penType->checkedId()) {
         case 0:
+            // Normal pen
             writeData.deltaX = 0;
             writeData.deltaY = 0;
             writeData.deltaZ = 10;
-            writeData.isLaserOn = false;
+            writeData.isLaserChange = false;
             writeList.push_back(writeData);
         break;
 
         case 1:
+            // Brush
             writeData.deltaX = 0;
             writeData.deltaY = 0;
             writeData.deltaZ = 10 + brushDown->text().toFloat();
-            writeData.isLaserOn = false;
+            writeData.isLaserChange = false;
             writeList.push_back(writeData);
         break;
 
         case 2:
+            // Laser
             writeData.deltaX = 0;
             writeData.deltaY = 0;
             writeData.deltaZ = 0;
+            writeData.isLaserChange = true;
             writeData.isLaserOn = false;
             writeList.push_back(writeData);
         break;
@@ -385,8 +415,9 @@ void MainWindow::transformAllPoints(void)
     foreach(WriteData writeData, writeList) {
         double size = writeData.deltaX * writeData.deltaX + writeData.deltaY * writeData.deltaY + writeData.deltaZ * writeData.deltaZ;
         size = sqrt(size);
-        if (size > 0.1) {
+        if (size > 0.1 or writeData.isLaserChange) {
             tempWriteList.push_back(writeData);
+            qDebug() << "Test:" << writeData.isLaserChange;
         }
     }
     writeList = tempWriteList;
@@ -410,7 +441,6 @@ void MainWindow::onGetPoseTimer(void)
 {
     Pose pose;
     GetPose(&pose);
-    //qDebug() <<
 }
 
 void MainWindow::onPlaybackStartBtnVerify(void)
@@ -420,135 +450,149 @@ void MainWindow::onPlaybackStartBtnVerify(void)
 
 void MainWindow::onStartBtnClicked(void)
 {
-    QPushButton *startBtn = findChild<QPushButton *>("startBtn");
+    if (startBtn->text() == QString("Start")) {
+        queuedCmdExecCtrl = QueuedCmdExecStartCtrl;
+        SetQueuedCmdExecCtrl(QueuedCmdExecStartCtrl);
 
-    if(startBtn->text() == QString(tr("Start"))){
-        playbackSendStatus = CPStart;
-        setCPInstantCmd((CPInstantCmd)playbackSendStatus);
-        onSendPlaybackTimer();
-    }else if(startBtn->text() == QString(tr("pause"))){
-        startBtn->setText(tr("Resume"));
-        playbackSendStatus = CPPause;
-        setCPInstantCmd((CPInstantCmd)playbackSendStatus);
-        bool isLaser = penType->checkedId() == 2;
-        if(isLaser){
-            SetIOState(0);
-        }
-    }else if(startBtn->text() == QString(tr("Resume"))){
-        startBtn->setText(tr("Pause"));
-        playbackSendStatus = CPStart;
-        setCPInstantCmd((CPInstantCmd)playbackSendStatus);
-        bool isLaser = penType->checkedId() == 2;
-        if(isLaser){
-            SetIOState(1);
-        }
+        onSendCPTimer();
+    } else if (startBtn->text() == QString("Pause")) {
+        startBtn->setText("Resume");
+        queuedCmdExecCtrl = QueuedCmdExecPauseCtrl;
+        SetQueuedCmdExecCtrl(QueuedCmdExecPauseCtrl);
+    } else if (startBtn->text() == QString("Resume")) {
+        startBtn->setText("Pause");
+        queuedCmdExecCtrl = QueuedCmdExecStartCtrl;
+        SetQueuedCmdExecCtrl(QueuedCmdExecStartCtrl);
     }
-}
-
-void MainWindow::onSendPlaybackTimer()
-{
-    qDebug() << startBtn->text() << "button pressed";
-
-    startBtn->setText(tr("Pause"));
-    stopBtn->setEnabled(true);
-
-    transformAllPoints();
-
-    // Calculate the total count of loop & line
-    playbackTotalLoop = 1;
-    playbackTotalLine = writeList.count();
-    playbackCurrentLoop = 0;
-    playbackCurrentLine = 0;
-
-    // Set the rang of progressbar
-    sendProgress->setValue(0);
-    sendProgress->setRange(0, playbackTotalLoop * playbackTotalLine);
-
-    executeProgress->setValue(0);
-    executeProgress->setRange(0, playbackTotalLoop * playbackTotalLine);
-
-    // !!!! Start communication
-    quint64 currentTime = QDateTime::currentDateTime().toMSecsSinceEpoch();
-    while (playbackSendStatus != CPStop) {
-        do {
-            // Check send status
-            if (playbackSendStatus == CPPause) {
-                QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
-                break;
-            }
-            //send the command then start the control
-            qDebug() << "Check buffer size";
-            uint32_t bufferSize;
-            GetCPBufferSize(&bufferSize);
-            if (bufferSize == 0) {
-                QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
-                break;
-            }
-            if (playbackCurrentLoop == playbackTotalLoop) {
-                break;
-            }
-            qDebug() << "Total line:" << playbackTotalLine << playbackCurrentLine;
-            //get the points
-            WriteData writeData = writeList.at(playbackCurrentLine);
-            CPBufferCmd cpBufferCmd;
-            cpBufferCmd.loop = playbackCurrentLoop;
-            cpBufferCmd.line = playbackCurrentLine;
-            cpBufferCmd.x = writeData.deltaX;
-            cpBufferCmd.y = writeData.deltaY;
-            cpBufferCmd.z = writeData.deltaZ;
-            cpBufferCmd.velocity = 100;
-            cpBufferCmd.ioState = writeData.isLaserOn;
-            qDebug() << "Before sending...";
-            SetCPBufferCmd(&cpBufferCmd);
-            qDebug() << "After sending...";
-            playbackCurrentLine++;
-
-            if(playbackCurrentLine == playbackTotalLine){
-                playbackCurrentLine = 0;
-                playbackCurrentLoop++;
-            }
-
-            sendProgress->setValue(playbackCurrentLoop * playbackTotalLine + playbackCurrentLine);
-        }while(0);
-        quint64 lastestTime = QDateTime::currentDateTime().toMSecsSinceEpoch();
-                if (lastestTime - currentTime > 250/*ms*/) {
-                    currentTime = lastestTime;
-                    // Current loop line state
-
-                    GetCPCurrentLoopLine(&exeCurrentLoop, &exeCurrentLine, &exeCurrentLineState);
-
-                    executeProgress->setValue(exeCurrentLoop * playbackTotalLine + (exeCurrentLine + 1));
-
-                    if (exeCurrentLoop == playbackTotalLoop - 1 and
-                        exeCurrentLine == playbackTotalLine - 1 and
-                        exeCurrentLineState == 1) {
-                        // True stop
-                        break;
-                    }
-                }
-    }
-
-
-    startBtn->setText("Start");
-    stopBtn->setEnabled(false);
-
-    // Set the value of progressbar
-    sendProgress->setValue(playbackTotalLoop * playbackTotalLine);
-    executeProgress->setValue(playbackTotalLoop * playbackTotalLine);
 }
 
 void MainWindow::onStopBtnClicked(void)
 {
+    queuedCmdExecCtrl = QueuedCmdExecStopCtrl;
+    SetQueuedCmdExecCtrl(QueuedCmdExecStopCtrl);
+    SetOutputIOState(0, false, false, 0);
+}
+
+void MainWindow::onSendCPTimer(void)
+{
+    transformAllPoints();
+
+    // Start button text, stop button enabled
+    startBtn->setText("Pause");
+    stopBtn->setEnabled(true);
+
+    // Calculate the total count of loop & line
+    uint32_t totalLoop = 1;
+    uint32_t linePerLoop = writeList.count();
+    uint32_t sendCurrentLoop = 0, sendCurrentLine = 0;
+
+    // Set the rang of progressbar
+    sendProgress->setValue(0);
+    sendProgress->setRange(0, totalLoop * linePerLoop);
+
+    executeProgress->setValue(0);
+    executeProgress->setRange(0, totalLoop * linePerLoop);
+
+    // !!!! Start communication
+    quint64 currentTime = QDateTime::currentDateTime().toMSecsSinceEpoch();
+    while (queuedCmdExecCtrl != QueuedCmdExecStopCtrl) {
+        do {
+            // Check send status
+            if (queuedCmdExecCtrl == QueuedCmdExecPauseCtrl) {
+                QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+                break;
+            }
+            // Whether send completed
+            if (sendCurrentLoop == totalLoop) {
+                break;
+            }
+            WriteData writeData = writeList.at(sendCurrentLine);
+            // Laser
+            if (writeData.isLaserChange) {
+                while (1) {
+                    if (queuedCmdExecCtrl == QueuedCmdExecPauseCtrl) {
+                        QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+                        continue;
+                    } else if (queuedCmdExecCtrl == QueuedCmdExecStartCtrl) {
+                        int result = SetOutputIOState(0, writeData.isLaserOn, true, sendCurrentLine);
+                        if (result != DobotCommunicate_NoError) {
+                            QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+                            continue;
+                        }
+                    }
+                    break;
+                }
+                if (queuedCmdExecCtrl == QueuedCmdExecStopCtrl) {
+                    break;
+                }
+                QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+            }
+            // CP
+            while (1) {
+                if (queuedCmdExecCtrl == QueuedCmdExecPauseCtrl) {
+                    QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+                    continue;
+                } else if (queuedCmdExecCtrl == QueuedCmdExecStartCtrl) {
+                    CPCmd cpCmd;
+                    cpCmd.cpMode = CPRelativeMode;
+
+                    cpCmd.x = writeData.deltaX;
+                    cpCmd.y = writeData.deltaY;
+                    cpCmd.z = writeData.deltaZ;
+                    if (cpCmd.x == 0 && cpCmd.y == 0 && cpCmd.z == 0) {
+                        break;
+                    }
+                    cpCmd.velocity = 100;
+                    int result = SetCPCmd(&cpCmd, true, sendCurrentLine);
+                    if (result != DobotCommunicate_NoError) {
+                        QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+                        continue;
+                    }
+                }
+                break;
+            }
+            if (queuedCmdExecCtrl == QueuedCmdExecStopCtrl) {
+                break;
+            }
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+
+            sendCurrentLine++;
+            if (sendCurrentLine == linePerLoop) {
+                sendCurrentLine = 0;
+                sendCurrentLoop++;
+            }
+            sendProgress->setValue(sendCurrentLoop * linePerLoop + (sendCurrentLine + 1));
+        } while (0);
+        // Update execution status
+        quint64 lastestTime = QDateTime::currentDateTime().toMSecsSinceEpoch();
+        if (lastestTime - currentTime > 250/*ms*/) {
+            currentTime = lastestTime;
+
+            // Current loop line state
+            uint32_t exeCurrentLine = 0;
+            bool isFinished = false;
+            GetQueuedCmdExecState(&exeCurrentLine, &isFinished);
+            qDebug() << "Current line" << exeCurrentLine;
+
+            executeProgress->setValue(exeCurrentLine + 1);
+            //currentLoopLabel->setText(QString("%1").arg(exeCurrentLine));
+
+            if (exeCurrentLine == totalLoop * linePerLoop  - 1 &&
+                isFinished == true) {
+                // True stop
+                break;
+            }
+        }
+    }
+    // Start button text, stop button disabled
     startBtn->setText("Start");
     stopBtn->setEnabled(false);
 
-    // ProgressBar
-    sendProgress->setValue(0);
+    // Set the value of progressbar
+    sendProgress->setValue(totalLoop * linePerLoop);
+    executeProgress->setValue(totalLoop * linePerLoop);
 
-    executeProgress->setValue(0);
-
-    playbackSendStatus = CPStop;
-    setCPInstantCmd((CPInstantCmd)playbackSendStatus);
+    onStopBtnClicked();
 }
 
 void MainWindow::onConfigBtnClicked(void)
@@ -565,95 +609,6 @@ void MainWindow::onUserDefBtnClicked(void)
 
 void MainWindow::onMouseBtnClicked(void)
 {
-//    if(mouseBtn->text() == QString("mouse")){
-//        mouseBtn->setText("stop");
-//        mouseSendStatus = CPStart;
-//    }else if(mouseBtn->text() == QString("stop")){
-//        mouseBtn->setText("mouse");
-//        mouseSendStatus = CPStop;
-//        setCPInstantCmd((CPInstantCmd)mouseSendStatus);
-//    }
-
-    setCPInstantCmd((CPInstantCmd)CPStart);
     CMouseControlDialog dlg;
     dlg.exec();
 }
-
-#if 0
-
-void MainWindow::mousePressEvent(QMouseEvent *event)
-{
-    if (event->button() == Qt::RightButton) {
-        rightBtnPressed = true;
-        qDebug() << "Right button pressed!";
-    }
-}
-
-void MainWindow::mouseReleaseEvent(QMouseEvent *event)
-{
-    if (event->button() == Qt::RightButton) {
-        rightBtnPressed = false;
-        qDebug() << "Right button released!";
-    }
-}
-
-void MainWindow::wheelEvent(QWheelEvent *event)
-{
-    z = event->angleDelta() / 8;
-    deltaZ = z.y();
-    qDebug() << deltaZ;
-
-}
-
-void MainWindow::onMouseTimer()
-{
-    uint32_t cpBufferCmd;
-//    GetCPBufferSize(&cpBufferCmd);
-    if(cpBufferCmd == 0){
-        qDebug() << "cpBufferCmd == 0";
-    }
-
-    qDebug() << "11";
-    QPoint pos = QCursor::pos();
-    int currentX = pos.x();
-    int currentY = pos.y();
-
-    static quint32 startupFlag = 1;
-    if(startupFlag)
-    {
-        startupFlag = 0;
-        lastX = currentX;
-        lastY = currentY;
-    }
-
-
-    qDebug() << lastX;
-    qDebug() << currentX;
-    deltaX += lastX - currentX;
-    qDebug() << deltaX;
-
-    qDebug() << lastY;
-    qDebug() << currentY;
-    deltaY += lastY - currentY;
-    qDebug() << deltaY;
-    lastX = currentX;
-    lastY = currentY;
-
-    if(deltaX != 0 || deltaY != 0 || deltaZ != 0)
-    {
-        qDebug() << "x:" << currentX << "\ny:" << currentY;
-        qDebug() << deltaX << deltaY << deltaZ;
-        CPBufferCmd cpBufferCmd;
-        cpBufferCmd.loop = 0;
-        cpBufferCmd.line = 0;
-        cpBufferCmd.x = deltaX / 10;
-        cpBufferCmd.y = deltaY / 10;
-        cpBufferCmd.z = deltaZ;
-        cpBufferCmd.velocity = 100;
-        cpBufferCmd.ioState = 0;
-
-//        SetCPBufferCmd(&cpBufferCmd);
-    }
-
-}
-#endif

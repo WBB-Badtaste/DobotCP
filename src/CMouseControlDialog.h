@@ -52,7 +52,7 @@ private:
     TrajectoryOperator m_trajOp;
 
     bool m_bReSendCmd;
-    CPBufferCmd m_cmd;
+    CPCmd m_cmd;
 };
 
 #endif // CMOUSECONTROL_H

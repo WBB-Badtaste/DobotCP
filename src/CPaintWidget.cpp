@@ -25,23 +25,13 @@
 #include <QDesktopWidget>
 #include <QScreen>
 #include <math.h>
+#include <QGraphicsScene>
+#include <QGraphicsView>
 
 CPaintWidget::CPaintWidget(QWidget *parent)
   : QWidget(parent),
     routeHeight(0)
 {
-#if 0
-    // Test
-    QPainterPath path;
-    QPoint point(0, 0);
-    path.addText(point, QFont("微软雅黑", 70), "越疆科技");
-    QList<QPolygonF> list = path.toSubpathPolygons();
-    for (int i = 0; i < list.count(); i++) {
-        foreach(QPointF point, list.at(i)) {
-        }
-    }
-    setData(list);
-#endif
     QList<QScreen *> screens = QGuiApplication::screens();
     foreach(QScreen *screen, screens) {
         qDebug() << screen->physicalDotsPerInch() << screen->logicalDotsPerInch() << screen->physicalSize();
