@@ -101,26 +101,42 @@ void CMouseControlDialog::wheelEvent(QWheelEvent *event)
 
 void CMouseControlDialog::onTimer(void)
 {
-    if(!m_bReSendCmd) {
-        double x(0.0), y(0.0), z(0.0);
+    if(!m_trajOp.IsEmpty())//判断是否还有未完成的轨迹
+    {
+        //不重发才重置下发数据
+        if(!m_bReSendCmd)
+        {
+            double x(0.0), y(0.0), z(0.0);
 
-        m_lastCmdPoint.t += SPLINE_SAMPLE_CYC;
+            //设置当前下发数据的时间戳
+            m_lastCmdPoint.t += SPLINE_SAMPLE_CYC;
 
-        m_trajOp.GetDataByTimeStamp(m_lastCmdPoint.t, x, y, z);
+            //读取对应的坐标
+            m_trajOp.GetDataByTimeStamp(m_lastCmdPoint.t, x, y, z);
 
-        m_cmd.x = m_lastCmdPoint.y - y;
-        m_cmd.y = m_lastCmdPoint.x - x;
-        m_cmd.z = z - m_lastCmdPoint.z;
-        m_cmd.velocity = 0;
+            //设置下发结构体
+            m_cmd.x = m_lastCmdPoint.y - y;
+            m_cmd.y = m_lastCmdPoint.x - x;
+            m_cmd.z = z - m_lastCmdPoint.z;
+            m_cmd.velocity = 0;
 
-        m_lastCmdPoint.x = x;
-        m_lastCmdPoint.y = y;
-        m_lastCmdPoint.z = z;
+            //保存当前数据，供下次使用
+            m_lastCmdPoint.x = x;
+            m_lastCmdPoint.y = y;
+            m_lastCmdPoint.z = z;
+        }
+
+        //下发数据
+        if (SetCPCmd(&m_cmd, true, 0) == DobotCommunicate_NoError)
+        {
+            qDebug() << "CP:" << m_lastCmdPoint.x << m_lastCmdPoint.y << m_lastCmdPoint.z;
+            m_bReSendCmd = false;
+        }
+        else
+        {
+            m_bReSendCmd = true;
+        }
     }
-    if (SetCPCmd(&m_cmd, true, 0) == DobotCommunicate_NoError) {
-        m_bReSendCmd = false;
-    } else {
-        m_bReSendCmd = true;
-    }
+
     timer->start(COMMAND_DELAY);
 }

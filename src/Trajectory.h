@@ -35,7 +35,6 @@ public:
 
 private:
     TRAJ_TYPE m_type;
-
 };
 
 #endif // TRAJECTORY_H

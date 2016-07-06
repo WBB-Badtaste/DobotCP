@@ -39,25 +39,35 @@ void TrajectoryOperator::PopSamplePoint(const unsigned num)
 
 void TrajectoryOperator::CreateOneAxisTarjectory(const unsigned &num, std::deque<double> &sampleDatas, std::deque<Trajectory *> &traj)
 {
-    //判断是否连接上一段
-    if( traj.size() > 0 //轨迹已经开始，不然出现野指针
-     && traj.back()->Type() == SPLINE // 最后一段轨迹是spline
-     && traj.back()->LastNodeType() != END_NODE)//spline轨迹没有结束
+    if( traj.size() < 1 ||//轨迹已经开始生成，不然会出现野指针
+        traj.back()->LastNodeType() == END_NODE )//上一段结束
     {
-        E2_CUB_SPLINE* splineX = (E2_CUB_SPLINE*)traj.back();
-        if(1)//判断是否结束
-            splineX->Create(num, m_sampleT, sampleDatas, MIDDLE_SEC);
-        else
-            splineX->Create(num, m_sampleT, sampleDatas, END_SEC);
-    }
-    else
-    {
-        E2_CUB_SPLINE *splineX = new E2_CUB_SPLINE();
+        //！！添加轨迹类型判断！！
 
-        if(1)//判断是否结束
-            splineX->Create(num, m_sampleT, sampleDatas, START_SEC);
-        else
-            splineX->Create(num, m_sampleT, sampleDatas, STATIC_SEC);
+        E2_CUB_SPLINE *spline = new E2_CUB_SPLINE();
+
+        if(1)//判断是否应该结束，现在没有合适方案，不结束spline
+            spline->Create(num, m_sampleT, sampleDatas, START_SEC);
+        else//该段就是完整的spline曲线
+            spline->Create(num, m_sampleT, sampleDatas, STATIC_SEC);
+
+    }
+    else//接上一段
+    {
+        //判断类型
+        if(traj.back()->Type() == SPLINE)//最后一段轨迹是spline
+        {
+            E2_CUB_SPLINE* spline = (E2_CUB_SPLINE*)traj.back();
+
+            if(1)//判断是否应该结束，现在没有合适方案，不结束spline
+                spline->Create(num, m_sampleT, sampleDatas, MIDDLE_SEC);
+            else
+                spline->Create(num, m_sampleT, sampleDatas, END_SEC);
+        }
+        else//其他类型没有算法
+        {
+
+        }
     }
 }
 
@@ -77,38 +87,53 @@ bool TrajectoryOperator::EnterPoint(TRAJ_E4_POINT &point)
 {
     //添加过滤，识别功能
     if(point.t <= m_lastEnterPoint.t)//时间戳有误
-        return false;
-    else
-        m_lastEnterPoint = point;
+        return false;      
+
+    //存点到临时区域
+    m_lastEnterPoint = point;
 
     //存入缓冲区
     SaveSamplePoint(point);
 
-    if(point.t - m_lastEnterPoint.t >= timeOfTrajectoryCreating &&
+    if(point.t - m_lastTrajPoint.t >= timeOfTrajectoryCreating &&
        m_sampleT.size() > numberOfTrajectoryCreating)//判断是否达到生成新轨迹条件
     {
-        CreateTrajectory();
+        CreateTrajectory();//生成轨迹
+        m_lastTrajPoint = point;
     }
-    else
-        return true;//没达到轨迹生成条件
 
     return true;
 }
 
+bool TrajectoryOperator::IsEmpty()
+{
+    if(m_trajX.size() < 1 &&
+       m_trajY.size() < 1 &&
+       m_trajZ.size() < 1 )
+        return true;
+    else
+        return false;
+}
+
 bool TrajectoryOperator::GetOneAxisData(const int time, double &data, std::deque<Trajectory*> &trajs)
 {
-    bool beginNewTraj(false);
+    bool beginNewTraj(false);//是否开始新的一段
 
     if(trajs.size() < 1)
         return false;
 
-    if(m_bStartTraj)
+    if(!m_bStartTraj)//还没有开始走轨迹
         beginNewTraj = true;
 
     if(time > trajs.front()->LastNodeTimeStamp())
     {//时间戳超过第一个轨迹区间的最后一个结点
-        delete trajs.front();
-        trajs.pop_front();
+        if(trajs.front()->LastNodeType() == END_NODE)
+        {//第一段是完整的，则删除该段
+            delete trajs.front();
+            trajs.pop_front();
+        }
+        else
+            return false;
 
         beginNewTraj = true;
     }

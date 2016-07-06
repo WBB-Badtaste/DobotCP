@@ -6,6 +6,7 @@ _e2_cub_spline::_e2_cub_spline()
     : Trajectory(SPLINE)
     , m_dequeOfNodes()
     , m_iter_ergodic()
+    , m_lastNode()
 {
     m_iter_ergodic = m_dequeOfNodes.begin();
 }
@@ -20,6 +21,7 @@ _e2_cub_spline::_e2_cub_spline(const _e2_cub_spline& object)
     : Trajectory(SPLINE)
     , m_dequeOfNodes()
     , m_iter_ergodic()
+    , m_lastNode(object.m_lastNode)
 {
     m_dequeOfNodes.assign(object.m_dequeOfNodes.begin(), object.m_dequeOfNodes.end());
     m_iter_ergodic = m_dequeOfNodes.begin();
@@ -32,6 +34,7 @@ _e2_cub_spline::_e2_cub_spline(const unsigned num,
     : Trajectory(SPLINE)
     , m_dequeOfNodes()
     , m_iter_ergodic()
+    , m_lastNode()
 {
     Create(num, time, data, type);
     m_iter_ergodic = m_dequeOfNodes.begin();
@@ -41,6 +44,7 @@ _e2_cub_spline& _e2_cub_spline::operator=(const _e2_cub_spline& object)
 {
     m_dequeOfNodes.assign(object.m_dequeOfNodes.begin(), object.m_dequeOfNodes.end());
     m_iter_ergodic = m_dequeOfNodes.begin();
+    m_lastNode = object.m_lastNode;
 	return *this;
 }
 
@@ -433,11 +437,20 @@ bool _e2_cub_spline::Create(
 //          return false;
 //  }
 
-    if(num < 2)
-        return false;
+    if(type == STATIC_SEC || type == START_SEC)
+    {
+        if(num < 3) return false;
+    }
+    else
+    {
+        if(num < 2) return false;
+    }
 
     if(!CalculateSpline(num, time, data, type))
         return false;
+
+    //最后点备份
+    m_lastNode = m_dequeOfNodes.back();
 
     return true;
 }
@@ -482,16 +495,16 @@ bool _e2_cub_spline::GetLastData(
         return false;
 
     if(time)
-        *time = m_dequeOfNodes.back().timeStamp;
+        *time = m_lastNode.timeStamp;
 
     if(pos)
-        *pos = m_dequeOfNodes.back().spCubEqu.A;
+        *pos = m_lastNode.spCubEqu.A;
 
     if(vel)
-        *vel = m_dequeOfNodes.back().spCubEqu.B;
+        *vel = m_lastNode.spCubEqu.B;
 
     if(acc)
-        *acc = 2.0 * m_dequeOfNodes.back().spCubEqu.C;
+        *acc = 2.0 * m_lastNode.spCubEqu.C;
 
     return true;
 }
@@ -503,10 +516,8 @@ bool _e2_cub_spline::GetDataByTimeStamp(
         double *const vel /* = nullptr */,
         double *const acc /* = nullptr */,
         GET_DATA_MODE mode /* = SEARCH */)
-
 //*****特别注意*****
 //最后一个点可能没有获取
-
 {
     if(m_dequeOfNodes.size() < 1)//如果没有结点，没有初始化spline，返回flase
         return false;
@@ -581,12 +592,12 @@ int _e2_cub_spline::FirstNodeTimeStamp()
 
 int _e2_cub_spline::LastNodeTimeStamp()
 {
-    return m_dequeOfNodes.back().timeStamp;
+    return m_lastNode.timeStamp;
 }
 
 NODE_TYPE _e2_cub_spline::LastNodeType()
 {
-    return m_dequeOfNodes.back().type;
+    return m_lastNode.type;
 }
 
 //bool _e2_cub_spline::SynReadData(SP_NODE &node)

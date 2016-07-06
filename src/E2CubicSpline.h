@@ -237,6 +237,13 @@ private:
     */
     std::deque<SP_NODE>::iterator m_iter_ergodic;  
 
+    /*
+    @brief: 最后一个点的信息，即使轨迹走完
+    @author: JoMar
+    @date: 2016-07-02
+    */
+    SP_NODE m_lastNode;
+
 	/*
 	@brief: sol Tridiagonal Matrices Parameters
 	@author: JoMar

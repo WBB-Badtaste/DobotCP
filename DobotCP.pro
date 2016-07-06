@@ -58,3 +58,6 @@ RESOURCES += \
     res/res.qrc
 
 RC_FILE = res/version.rc
+
+SUBDIRS += \
+    ../SplineTest/SplineTest.pro

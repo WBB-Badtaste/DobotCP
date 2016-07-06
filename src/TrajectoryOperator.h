@@ -122,6 +122,8 @@ public:
 
     bool GetDataByTimeStamp(const int time, double &x, double &y, double &z);
 
+    bool IsEmpty();
+
     TRAJ_E4_POINT m_lastEnterPoint;
     TRAJ_E4_POINT m_lastTrajPoint;
 
