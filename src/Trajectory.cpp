@@ -15,7 +15,7 @@ Trajectory::Trajectory(const Trajectory &object):m_type(object.m_type)
 
 }
 
-Trajectory::Trajectory(const TRAJ_TYPE &t):m_type(t)
+Trajectory::Trajectory(const TRAJ_TYPE t):m_type(t)
 {
 
 }

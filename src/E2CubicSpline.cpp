@@ -140,7 +140,6 @@ bool _e2_cub_spline::CalculateSpline(const unsigned nodeAmount, const double *pT
        E[nodeAmount - 1] = E[nodeAmount - 2] * fac;
     }
 
-
     //解三对角矩阵
     SolTridiagonalMatrices(nodeAmount, A, B, C, D, E);
 

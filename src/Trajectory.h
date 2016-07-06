@@ -23,7 +23,7 @@ class Trajectory
 {
 public:
     Trajectory();
-    Trajectory(const TRAJ_TYPE &type);
+    Trajectory(const TRAJ_TYPE type);
     Trajectory(const Trajectory &object);
     Trajectory &operator=(const Trajectory &object);
     virtual ~Trajectory();
