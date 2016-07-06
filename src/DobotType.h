@@ -261,4 +261,6 @@ enum DobotResult {
 
 };
 
+#pragma pack(pop)
+
 #endif

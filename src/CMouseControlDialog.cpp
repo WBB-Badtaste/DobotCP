@@ -9,8 +9,6 @@
 #include <QDateTime>
 
 
-
-
 CMouseControlDialog::CMouseControlDialog(QWidget *parent)
   : QDialog(parent),
     timer(nullptr),
@@ -39,14 +37,12 @@ CMouseControlDialog::CMouseControlDialog(QWidget *parent)
     timer->setSingleShot(true);
     timer->start(COMMAND_DELAY);
 
-#if 0
     RECT mainWinRect; //RECT在windef.h中被定义
     mainWinRect.left = (LONG)this->geometry().left() + 560;
     mainWinRect.right = (LONG)this->geometry().right() + 560;
     mainWinRect.top = (LONG)this->geometry().top() + 200 ;
     mainWinRect.bottom = (LONG)this->geometry().bottom() + 200;
     ClipCursor(&mainWinRect);
-#endif
 
     m_sysTime.start();//开始计算系统运行时间
     m_lastSampleTime = m_startSampleTime = m_sysTime.elapsed();
@@ -118,7 +114,7 @@ void CMouseControlDialog::onTimer(void)
     {
         if(!m_bReSendCmd)
         {
-            double x(0.0), y(0.0),z(0.0);
+            double x(0.0), y(0.0), z(0.0);
 
             m_lastCmdPoint.t += SPLINE_SAMPLE_CYC;
 
@@ -141,6 +137,7 @@ void CMouseControlDialog::onTimer(void)
             m_bReSendCmd = false;
         else
             m_bReSendCmd = true;
+
     }
 
     timer->start(COMMAND_DELAY);

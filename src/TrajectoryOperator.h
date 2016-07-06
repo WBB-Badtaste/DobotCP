@@ -135,7 +135,6 @@ private:
     std::deque<Trajectory*> m_trajY;
     std::deque<Trajectory*> m_trajZ;
 
-
     //采集数据，待转化为轨迹
     std::deque<double> m_sampleT;
     std::deque<double> m_sampleX;
