@@ -12,23 +12,27 @@
 
 CMouseControlDialog::CMouseControlDialog(QWidget *parent)
   : QDialog(parent)
-  ,  timer(nullptr)
-  ,  rightBtnPressed(false)
-  ,  m_ratio_x((float)(DOBOT_WORK_X) / (float)(SCREEN_HEIGHT) / MANUAL_RATIO)
-  ,  m_ratio_y((float)(DOBOT_WORK_Y) / (float)(SCREEN_WIDTH) / MANUAL_RATIO)
-  ,  m_ratio_z(1 / 30)
-  ,  m_sysTime()
-  ,  m_lastSampleTime(0)
-  ,  m_startSampleTime(0)
-  ,  m_startCmdTime(0)
-  ,  m_startSampleSignal(2)
-  ,  m_lastSamplePoint()
-  ,  m_lastCmdPoint()
-  ,  m_trajOp()
-  ,  m_bReSendCmd(false)
+  , timer(nullptr)
+  , rightBtnPressed(false)
+  , m_ratio_x((float)(DOBOT_WORK_X) / (float)(SCREEN_HEIGHT) / MANUAL_RATIO)
+  , m_ratio_y((float)(DOBOT_WORK_Y) / (float)(SCREEN_WIDTH) / MANUAL_RATIO)
+  , m_ratio_z(1 / 30)
+  , m_sysTime()
+  , m_lastSampleTime(0)
+  , m_startSampleTime(0)
+  , m_startCmdTime(0)
+  , m_startSampleSignal(2)
+#ifdef DO_NOT_USE_TRAJECTORY
+  , m_mousePoint()
+#else
+  , m_lastSamplePoint()
+  , m_lastCmdPoint()
+  , m_trajOp()
+#endif
+  , m_bReSendCmd(false)
 #ifdef EXPORT_CMD_DATAS
-  ,  m_excel()
-  ,  m_excel_row(1)
+  , m_excel()
+  , m_excel_row(1)
 #endif
 {
     setWindowTitle("Mouse control panel");
@@ -52,8 +56,6 @@ CMouseControlDialog::CMouseControlDialog(QWidget *parent)
     ClipCursor(&mainWinRect);
 
     m_sysTime.start();//开始计算系统运行时间
-
-    m_trajOp.EnterPoint(m_lastSamplePoint);
 
 #ifdef EXPORT_CMD_DATAS
     m_excel.Open(QObject::tr("C:\\Users\\sos90\\Desktop\\splineDatas.xls"),1,false);
@@ -107,28 +109,35 @@ void CMouseControlDialog::mouseMoveEvent(QMouseEvent *event)
     QPoint mousePoint(event->pos());//获取鼠标位置
     int currentSampleTime(m_sysTime.elapsed());//获取时间戳
 
+
     if(m_startSampleSignal)
     {
         if(m_startSampleSignal == 2)
         {
-            //第一次鼠标事件是自动去到窗口中心,也会存入轨迹生成器
+            //第一次鼠标事件是自动去到窗口中心,也会存入缓冲区
+#ifndef DO_NOT_USE_TRAJECTORY
             m_lastSamplePoint.t = 0;
             m_lastSamplePoint.x = mousePoint.x();
             m_lastSamplePoint.y = mousePoint.y();
 
             m_lastCmdPoint = m_lastSamplePoint;//将初始点也存到命令位置中
+#endif
+
         }
         else if(m_startSampleSignal == 1)
         {
             //第二次鼠标事件才是开始运动
-            m_startSampleTime = currentSampleTime - 100;
+            m_startSampleTime = currentSampleTime - MOUSE_SAMPLE_CYC;
             m_lastSampleTime = currentSampleTime;
 
+#ifndef DO_NOT_USE_TRAJECTORY
             m_lastSamplePoint.t = currentSampleTime - m_startSampleTime;
             m_lastSamplePoint.x = mousePoint.x();
             m_lastSamplePoint.y = mousePoint.y();
 
             m_lastCmdPoint = m_lastSamplePoint;//将初始点也存到命令位置中
+#endif
+
         }
 
         m_startSampleSignal--;
@@ -139,26 +148,65 @@ void CMouseControlDialog::mouseMoveEvent(QMouseEvent *event)
         if(currentSampleTime - m_lastSampleTime > MOUSE_SAMPLE_CYC)
         {
             m_lastSampleTime = currentSampleTime;
-
+#ifndef DO_NOT_USE_TRAJECTORY
             m_lastSamplePoint.t = currentSampleTime - m_startSampleTime;
             m_lastSamplePoint.x = mousePoint.x();
             m_lastSamplePoint.y = mousePoint.y();
+#endif
         }
         else
             return;
     }
-
+#ifdef DO_NOT_USE_TRAJECTORY
+    qDebug() << "Sample time:" << currentSampleTime - m_startSampleTime;
+    m_mousePoint.push_back(mousePoint);
+#else
     qDebug() << "Sample time:" << m_lastSamplePoint.t;
     m_trajOp.EnterPoint(m_lastSamplePoint);
+#endif
 }
 
 void CMouseControlDialog::wheelEvent(QWheelEvent *event)
 {
+#ifdef DO_NOT_USE_TRAJECTORY
+#else
     m_lastSamplePoint.z = event->angleDelta().y();
+#endif
 }
 
 void CMouseControlDialog::onTimer(void)
 {
+#ifdef DO_NOT_USE_TRAJECTORY
+
+    if(m_mousePoint.size()>2)
+    {
+        if(!m_bReSendCmd)
+        {
+            //设置下发结构体
+            m_cmd.x = (m_mousePoint[1].y() - m_mousePoint[2].y()) * m_ratio_x;
+            m_cmd.y = (m_mousePoint[1].x() - m_mousePoint[2].x()) * m_ratio_y;
+            m_cmd.z = 0;
+            m_cmd.velocity = 0;
+
+            m_mousePoint.pop_front();
+        }
+
+        int result = SetCPCmd(&m_cmd, true, 0);
+        if (result == DobotCommunicate_NoError)
+        {
+            qDebug() << "CP:" << m_cmd.x << m_cmd.y << m_cmd.z;
+            m_bReSendCmd = false;
+        }
+        else
+        {
+            if(result == DobotCommunicate_BufferFull)
+                qDebug() << "Communicate buffer full!";
+            else
+                qDebug() << "Communicate timeout!";
+            m_bReSendCmd = true;
+        }
+    }
+#else
     if(!m_trajOp.IsEmpty())//判断是否还有未完成的轨迹
     {
         //不重发才重置下发数据
@@ -207,7 +255,7 @@ void CMouseControlDialog::onTimer(void)
         int result = SetCPCmd(&m_cmd, true, 0);
         if (result == DobotCommunicate_NoError)
         {
-            qDebug() << "CP:" << m_lastCmdPoint.x << m_lastCmdPoint.y << m_lastCmdPoint.z;
+            qDebug() << "CP:" << m_cmd.x << m_cmd.y << m_cmd.z;
             m_bReSendCmd = false;
         }
         else
@@ -220,6 +268,6 @@ void CMouseControlDialog::onTimer(void)
         }
 #endif
     }
+#endif
     timer->start(COMMAND_DELAY);
-
 }
