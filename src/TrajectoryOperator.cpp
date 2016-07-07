@@ -1,11 +1,12 @@
 #include "TrajectoryOperator.h"
+#include <qdebug.h>
 
 
 TrajectoryOperator::TrajectoryOperator()
     : m_lastEnterPoint()
     , m_lastTrajPoint()
-    , numberOfTrajectoryCreating(5)
-    , timeOfTrajectoryCreating(500)
+    , numberOfTrajectoryCreating(3)
+    , timeOfTrajectoryCreating(300)
     , m_trajX()
     , m_trajY()
     , m_trajZ()
@@ -50,6 +51,8 @@ void TrajectoryOperator::CreateOneAxisTarjectory(const unsigned &num, std::deque
             spline->Create(num, m_sampleT, sampleDatas, START_SEC);
         else//该段就是完整的spline曲线
             spline->Create(num, m_sampleT, sampleDatas, STATIC_SEC);
+
+        traj.push_back(spline);
 
     }
     else//接上一段
@@ -117,34 +120,37 @@ bool TrajectoryOperator::IsEmpty()
 
 bool TrajectoryOperator::GetOneAxisData(const int time, double &data, std::deque<Trajectory*> &trajs)
 {
-    bool beginNewTraj(false);//是否开始新的一段
 
     if(trajs.size() < 1)
         return false;
 
-    if(!m_bStartTraj)//还没有开始走轨迹
-        beginNewTraj = true;
+//    if(!m_bStartTraj)//还没有开始走轨迹
+//        beginNewTraj = true;
 
     if(time > trajs.front()->LastNodeTimeStamp())
     {//时间戳超过第一个轨迹区间的最后一个结点
         if(trajs.front()->LastNodeType() == END_NODE)
-        {//第一段是完整的，则删除该段
+        {//第一个轨迹区间是完整的，则删除该轨迹
             delete trajs.front();
             trajs.pop_front();
+            qDebug()<< "A tragectory has been deleted!";
         }
         else
             return false;
 
-        beginNewTraj = true;
+//        beginNewTraj = true;
     }
 
     if(m_trajX.front()->Type() == SPLINE)//区分轨迹区间类型
     {
         E2_CUB_SPLINE *spline = (E2_CUB_SPLINE *)trajs.front();
+        spline->GetDataByTimeStamp(time, &data, nullptr, nullptr);
+        /*
         if(beginNewTraj)
             spline->GetDataByTimeStamp(time, &data, nullptr, nullptr, ERGODIC_START);
         else
             spline->GetDataByTimeStamp(time, &data, nullptr, nullptr, ERGODIC_CONTINUE);
+        */
     }
 
     return true;

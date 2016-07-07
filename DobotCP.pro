@@ -17,14 +17,16 @@ SOURCES += \
     src/CMouseControlDialog.cpp \
     src/E2CubicSpline.cpp \
     src/Trajectory.cpp \
-    src/TrajectoryOperator.cpp
+    src/TrajectoryOperator.cpp \
+    src/excelengine.cpp
 
 HEADERS  += \
         src/MainWindow.h \
     src/CMouseControlDialog.h \
     src/E2CubicSpline.h \
     src/Trajectory.h \
-    src/TrajectoryOperator.h
+    src/TrajectoryOperator.h \
+    src/excelengine.h
 
 SOURCES +=\
         src/CPLTProcess.cpp\
