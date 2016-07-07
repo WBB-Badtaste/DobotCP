@@ -109,7 +109,6 @@ void CMouseControlDialog::mouseMoveEvent(QMouseEvent *event)
     QPoint mousePoint(event->pos());//获取鼠标位置
     int currentSampleTime(m_sysTime.elapsed());//获取时间戳
 
-
     if(m_startSampleSignal)
     {
         if(m_startSampleSignal == 2)
